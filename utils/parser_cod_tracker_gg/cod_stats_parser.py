@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from typing import List, Dict, Optional, Any
+import cfscrape
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,7 @@ def get_html(host, url_start, url_finish, activision_id: str):
     url = host + url_start + url_middle + url_finish
     logger.info(f'url: {url}')
     response = requests.get(url=url, headers=HEADERS)
+
     return response
 
 
@@ -78,8 +81,10 @@ def parser_act_id(activision_id, game_type='WZ'):
 
 
 def get_html_2(url):
-    response = requests.get(url=url, headers=HEADERS)
-    return response
+    # response = requests.get(url=url, headers=HEADERS)
+    scrapper = cfscrape.create_scraper()
+    html_content = scrapper.get(url=url)
+    return html_content
 
 
 # парсер. возвращает словарь вида: warzone - plumber - kills - 10
