@@ -15,6 +15,7 @@ import logging
 import re
 from typing import List, Dict, Optional, Any
 import cfscrape
+import cloudscraper
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,8 @@ def parser_act_id(activision_id, game_type='WZ'):
 
 def get_html_2(url):
     # response = requests.get(url=url, headers=HEADERS)
-    scrapper = cfscrape.create_scraper()
+    # scrapper = cfscrape.create_scraper(delay=3)
+    scrapper = cloudscraper.create_scraper(delay=3)
     html_content = scrapper.get(url=url)
     return html_content
 
@@ -119,7 +121,7 @@ def parse_stat(activision_account=None, psn_account=None,
         return {'warzone': None, 'modern-warfare': None, 'cold-war': None}
 
     urls = {
-        'warzone': url_host + 'warzone/profile/' + url_profile_type_part + url_account_name_part,
+        'warzone': url_host + 'warzone/profile/' + url_profile_type_part + url_account_name_part + "/overview",
         'modern-warfare': url_host + 'modern-warfare/profile/' + url_profile_type_part + url_account_name_part,
         'cold-war': url_host + 'cold-war/profile/' + url_profile_type_part + url_account_name_part
     }

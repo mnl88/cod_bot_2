@@ -9,11 +9,8 @@ from loader import dp, bot
 from utils.db_api.alchemy import Person, DB, TG_Account
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-# from .handler_3_cod_stats import show_profile
 import logging
-# from handlers.cod_old_handlers.handler_0_middleware import update_tg_account, mentioned_user_list, profile_info
-from keyboards.inline import inline_kb1_shoe_profile_or_stats, inline_kb_edit_data, \
-    inline_kb_edit_or_not
+from keyboards.inline import inline_kb1_shoe_profile_or_stats, inline_kb_edit_data, inline_kb_edit_or_not
 from keyboards import inline
 
 logger = logging.getLogger(__name__)
@@ -123,7 +120,7 @@ async def command_me(query: types.CallbackQuery, state: FSMContext):
     await CommandMeState.account_is_entered.set()
 
 
-# при указании аккаунта
+# при вводе аккаунта
 @dp.message_handler(state=CommandMeState.account_is_entered)
 async def command_me(message: types.Message, state: FSMContext):
     message_id = message.message_id
@@ -133,10 +130,7 @@ async def command_me(message: types.Message, state: FSMContext):
     logger.info(f'Пользователь {message.from_user.full_name} '
                 f'(ID: {message.from_user.id}) указал значение {message.text}')
 
-    # message_text = f"Введите {query.data}. \nЕсли передумали, нажмите кнопку НАЗАД"
-
     db = DB()
-    # tg_account = TG_Account(id=message.from_user.id)
     person = Person(tg_account=TG_Account(id=message.from_user.id))
     if data['selected_account'] == 'psn_account':
         person.psn_account = message.text
@@ -187,7 +181,6 @@ async def callback_show_profile(query: types.CallbackQuery, state: FSMContext):
     tg_account = db.get_tg_account(tg_id=query.from_user.id)
     person = db.get_person_by_tg_account(tg_account=tg_account)
     full_text = profile_info(person) + '\n\n<b>Хотите изменить профиль?</b>'
-    # await asyncio.sleep(1)
 
     await bot.edit_message_text(
         chat_id=query.from_user.id,
