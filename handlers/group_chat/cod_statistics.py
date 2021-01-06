@@ -6,7 +6,7 @@ from handlers.private_chat.handler_0_middleware import update_tg_account, full_p
 from loader import dp
 from utils.db_api.alchemy import Person, DB
 from aiogram import types
-from utils.parser_cod_tracker_gg.cod_stats_parser import get_kd, parse_stat
+from utils.parser_cod_tracker_gg.cod_stats_parser import get_kd, get_statistics
 from data.config import admins, COD_CHAT_ID
 from aiogram.utils.markdown import text
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Обновляем статистику по КД
 async def stat_update(db: DB, person: Person):
     try:
-        parsed_stats = parse_stat(activision_account=person.activision_account)
+        parsed_stats = get_statistics(activision_account=person.activision_account)
         kd_ratio = get_kd(parsed_stats)
         if kd_ratio['warzone'] is None and kd_ratio['modern-warfare'] is None and kd_ratio['cold-war'] is None:
             logger.info('Т.к. значения всех КД не определены, то перезаписи КД не будет')

@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 import re
 
-from utils.parser_cod_tracker_gg.cod_stats_parser import parse_stat, get_kd
+from utils.parser_cod_tracker_gg.cod_stats_parser import get_statistics, get_kd
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def update_statistics_if_needs(db: DB, person: Person, hours=10):
 
 def stat_update(db: DB, person: Person):
     try:
-        parsed_stats = parse_stat(activision_account=person.activision_account)
+        parsed_stats = get_statistics(activision_account=person.activision_account)
         kd_ratio = get_kd(parsed_stats)
         if kd_ratio['warzone'] is None and kd_ratio['modern-warfare'] is None and kd_ratio['cold-war'] is None:
             logger.info('Т.к. значения всех КД не определены, то перезаписи КД не будет')

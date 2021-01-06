@@ -1,21 +1,14 @@
 """
 Парсер с сайта https://cod.tracker.gg/
-
-platform_type 1 - PC
-platform_type 2 - PS
-platform_type 3 - Xbox
-
 """
 
-# TODO: сделать асинхронной
-
 import requests
-from bs4 import BeautifulSoup
 import logging
-import re
-from typing import List, Dict, Optional, Any
-import cfscrape
-import cloudscraper
+import concurrent.futures
+
+from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
+from random import shuffle
 
 
 logger = logging.getLogger(__name__)
@@ -25,73 +18,50 @@ URL_MP_START = 'modern-warfare/profile/atvi/'
 URL_MP_FINISH = '/mp'
 URL_WZ_START = 'warzone/profile/atvi/'
 URL_WZ_FINISH = '/overview'
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
-    'DNT': '1',
-    'sec-ch-ua': '"Google Chrome";v="87", " Not;A Brand";v="99", "Chromium";v="87"',
-    'sec-ch-ua-mobile': '?0',
-    'Upgrade-Insecure-Requests': '1'
-}
+
+URL_WITH_PROXIES = 'https://free-proxy-list.net/'
+
+working_proxies_list = []
+working_proxies_list_3 = []
+responses = []
 
 
-def get_html(host, url_start, url_finish, activision_id: str):
-    """распарчим страничку"""
-    url_middle = activision_id.replace('#', '%23')
-    url = host + url_start + url_middle + url_finish
-    logger.info(f'url: {url}')
-    response = requests.get(url=url, headers=HEADERS)
+# получаем список ЭЛИТНЫХ =) проксей с сайта https://free-proxy-list.net/
+def get_proxies():
+    logger.info(f'Парсим прокси с сайта https://free-proxy-list.net/')
+    r = requests.get(URL_WITH_PROXIES)
+    soup = BeautifulSoup(r.content, 'html.parser')
+    table = soup.find('tbody')
+    proxies = []
+    for row in table:
+        if row.find_all('td')[4].text == 'elite proxy':
+            proxy = ':'.join([row.find_all('td')[0].text, row.find_all('td')[1].text])
+            proxies.append(proxy)
+        else:
+            pass
+    logger.info(f'Кол-во полученных проксей = {len(proxies)}')
+    return proxies
 
-    return response
 
-
-def get_content(html, game_type='WZ'):
-    """Вернем список труб"""
-    if game_type == 'WZ':
-        kd_ratio_column = 2
-    else:
-        kd_ratio_column = 0
-
-    soup = BeautifulSoup(html.text, 'html.parser')  # превращаем HTML в суп
-    kd_ratio = 'unknown'
+def fetching(url, proxy, game_type):
+    user_agent = UserAgent()
+    current_ua = user_agent.random
     try:
-        mini_soup = soup.find('div', class_='giant-stats')  # уменьшаем суп до таблицы
-        items = mini_soup.find_all('div', class_='stat align-left giant expandable')  # разбиваем построчно
-        for i, item in enumerate(items[:3]):  # перебирает только строк в каждом блоке
-            if i == kd_ratio_column:
-                title = item.find('span', title='K/D Ratio').get_text()
-                if title == 'K/D Ratio':
-                    kd_ratio = item.find('span', class_='value').get_text()
+        response = requests.get(
+            url=url,
+            headers={'User-Agent': current_ua},
+            proxies={'http': proxy, 'https': proxy},
+            timeout=2)
+        if response.status_code == 200:
+            responses.append([game_type, response])
+            logger.info(f'Статистика по {str(game_type).upper()} получена')
     except:
         pass
-    return kd_ratio
 
 
-def parser_act_id(activision_id, game_type='WZ'):
-    """парсер КД по id activision"""
-
-    if game_type == 'WZ':
-        html = get_html(HOST, URL_WZ_START, URL_WZ_FINISH, activision_id)
-    else:
-        html = get_html(HOST, URL_MP_START, URL_MP_FINISH, activision_id)
-    if html.status_code == 200:
-        kd_ratio = get_content(html, game_type)
-    else:
-        logger.error(f'Что-то не так {html}, {html.status_code}')
-        kd_ratio = 'unknown'
-    return kd_ratio
-
-
-def get_html_2(url):
-    # response = requests.get(url=url, headers=HEADERS)
-    # scrapper = cfscrape.create_scraper(delay=3)
-    scrapper = cloudscraper.create_scraper(delay=3)
-    html_content = scrapper.get(url=url)
-    return html_content
-
-
-# парсер. возвращает словарь вида: warzone - plumber - kills - 10
-def parse_stat(activision_account=None, psn_account=None,
-               blizzard_account=None, xbox_account=None, platform_type=None) -> dict:
+def game_types_and_urls(
+        activision_account=None, psn_account=None, blizzard_account=None, xbox_account=None, platform_type=None
+) -> dict:
     """парсер. возвращает словарь вида: warzone - plumber - kills - 10"""
 
     url_host = 'https://cod.tracker.gg/'
@@ -120,34 +90,17 @@ def parse_stat(activision_account=None, psn_account=None,
         logger.error('Account Activision или сочитание платформа + аккаунт к этой платформе не обнаружены')
         return {'warzone': None, 'modern-warfare': None, 'cold-war': None}
 
-    urls = {
+    return {
         'warzone': url_host + 'warzone/profile/' + url_profile_type_part + url_account_name_part + "/overview",
         'modern-warfare': url_host + 'modern-warfare/profile/' + url_profile_type_part + url_account_name_part,
         'cold-war': url_host + 'cold-war/profile/' + url_profile_type_part + url_account_name_part
     }
-    all_stats_dict = {}
-    for game_type, url in urls.items():
-
-        html = get_html_2(urls[game_type])
-        # print('html.status_code = ', html.status_code)
-        if html.status_code == 200:
-            # kd_ratio = get_kd_ratio(html, game_type)
-            logger.info(f'{game_type}, url: {url} - доступна для парсинга')
-            all_stats_dict[game_type] = get_statistics(html)
-        elif html.status_code == 404:
-            # kd_ratio = get_kd_ratio(html, game_type)
-            logger.info(f'{game_type}, url: {url} - ошибка 404, парсинг невозможен')
-            all_stats_dict[game_type] = get_statistics(html)
-        else:
-            logger.error(f'Что-то не так {urls[game_type]}, {html.status_code}')
-            all_stats_dict[game_type] = None
-    return all_stats_dict
 
 
-def get_statistics(html) -> dict:
+def get_dict_from_response(response_fetch) -> dict:
     """Вернем список труб"""
 
-    soup = BeautifulSoup(html.text, 'html.parser')  # превращаем HTML в суп
+    soup = BeautifulSoup(response_fetch, 'lxml')  # превращаем в суп
     stat_dict = {}
     try:
         items = soup.find('div', class_='trn-grid').find_all('div', class_='segment-stats card bordered responsive')
@@ -163,7 +116,6 @@ def get_statistics(html) -> dict:
                     value = None
                 if stat_dict[header].setdefault(title) is None:
                     stat_dict[header][title] = value
-        # print(stat_dict)
     except:
         pass
     return stat_dict
@@ -174,17 +126,16 @@ def get_kd(full_statistic: dict):
     try:
         kd_ratio['warzone'] = full_statistic.setdefault('warzone').setdefault('Battle Royale').setdefault('K/D Ratio')
     except Exception as ex:
-        print('ERROR: ', ex)
         kd_ratio['warzone'] = None
     try:
-        kd_ratio['modern-warfare'] = full_statistic.setdefault('modern-warfare').setdefault('Lifetime Overview').setdefault('K/D Ratio')
+        kd_ratio['modern-warfare'] = full_statistic.setdefault('modern-warfare').setdefault(
+            'Lifetime Overview').setdefault('K/D Ratio')
     except Exception as ex:
-        print('ERROR: ', ex)
         kd_ratio['modern-warfare'] = None
     try:
-        kd_ratio['cold-war'] = full_statistic.setdefault('cold-war').setdefault('Lifetime Overview').setdefault('K/D Ratio')
+        kd_ratio['cold-war'] = full_statistic.setdefault('cold-war').setdefault('Lifetime Overview').setdefault(
+            'K/D Ratio')
     except Exception as ex:
-        print('ERROR: ', ex)
         kd_ratio['cold-war'] = None
     return kd_ratio
 
@@ -198,28 +149,57 @@ def show_statistics(full_statistic: dict):
                 print(s, ': ', v)
 
 
-def main():
+def get_statistics(
+        activision_account=None,
+        psn_account=None,
+        blizzard_account=None,
+        xbox_account=None,
+        platform_type=None
+) -> dict:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(message)s',
         datefmt='%d.%m.%y %H:%M:%S')
 
-    full_statistic = parse_stat(activision_account='DRONORD#9501196')
-    show_statistics(full_statistic)
+    types_and_urls = game_types_and_urls(
+        activision_account=activision_account,
+        psn_account=psn_account,
+        blizzard_account=blizzard_account,
+        xbox_account=xbox_account,
+        platform_type=platform_type
+    )
 
-    # kd_ratio_wz = parse_stat(activision_account='npopok#6351930')['warzone']['Battle Royale']['K/D Ratio']
-    # kd_ratio_mw = parse_stat(psn_account='manile_88', platform_type=2)['modern-warfare']['Lifetime Overview']['K/D Ratio']
-    # # kd_ratio_cd = parse_stat(blizzard_account='Manile#21212', platform_type=1)['cold-war']['Warzone Overview']['K/D Ratio']
-    # # kd_ratio_wz_2 = parse_stat(xbox_account='unknown 7878', platform_type=3)['cold-war']['Warzone Overview']['K/D Ratio']
-    # # kd_ratio_cd_2 = parse_stat()['cold-war']['Warzone Overview']['K/D Ratio']
-    # statistic = parse_stat(activision_account='npopok#6351930')
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for proxy in get_proxies()[:100]:
+            futures.append(executor.submit(
+                fetching, proxy=proxy, url=types_and_urls['warzone'], game_type='warzone'))
+            futures.append(executor.submit(
+                fetching, proxy=proxy, url=types_and_urls['modern-warfare'], game_type='modern-warfare'))
+            futures.append(executor.submit(
+                fetching, proxy=proxy, url=types_and_urls['cold-war'], game_type='cold-war'))
 
-    # kd_wz_example = get_kd(parse_stat(activision_account='npopok#6351930'), 'WZ')
-    # print(f'{kd_wz_example=}')
-    # kd_mp_example = get_kd(parse_stat(psn_account='manile_88', platform_type=2), 'MP')
-    # print(f'{kd_mp_example=}')
-    # kd_cw_example = get_kd(parse_stat(blizzard_account='Manile#21212', platform_type=1), 'CD')
-    # print(f'{kd_cw_example=}')
+    full_statistic = {
+        'warzone': None,
+        'modern-warfare': None,
+        'cold-war': None
+    }
+
+    for response in responses:
+        if response[0] == 'warzone':
+            full_statistic['warzone'] = get_dict_from_response(response[1].content)
+        if response[0] == 'modern-warfare':
+            full_statistic['modern-warfare'] = get_dict_from_response(response[1].content)
+        if response[0] == 'cold-war':
+            full_statistic['cold-war'] = get_dict_from_response(response[1].content)
+
+    return full_statistic
+
+
+def main():
+    data = get_statistics(activision_account='DRONORD#9501196')
+    kd = get_kd(data)
+    print(kd)
 
 
 if __name__ == '__main__':
