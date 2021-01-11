@@ -16,7 +16,7 @@ ip = os.getenv("ip")
 COD_CHAT_ID = -1001152933021
 
 # DATABASE
-driver_name = 'postgres'
+DATABASE = os.getenv('DATABASE')
 DATABASE_HOST = os.getenv('DATABASE_HOST')
 DATABASE_PORT = os.getenv('DATABASE_PORT')
 DATABASE_USER = os.getenv('DATABASE_USER')
@@ -28,6 +28,7 @@ PSN_EMAIL = os.getenv('PSN_EMAIL')
 PSN_PASSWORD = os.getenv('PSN_PASSWORD')
 PSN_USERNAME = os.getenv('PSN_USERNAME')
 
+POSTGRES_URI = f'postgresql+asyncpg://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}/{DATABASE_NAME}'
 
 if __name__ == '__main__':
     print(admins)
